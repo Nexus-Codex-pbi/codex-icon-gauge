@@ -1,0 +1,85 @@
+/*
+ * Codex visual base styles.
+ * Includes the resize/scroll fix (Policy 1180.2.2) — root has overflow:auto,
+ * body grows with content, no overlap when the visual is shrunk.
+ */
+
+.codex-visual-root {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.codex-visual-title {
+    flex: 0 0 auto;
+    padding: 8px 12px 4px;
+    line-height: 1.2;
+}
+
+.codex-visual-empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    color: #5e5d5a;
+    min-height: 96px;
+}
+
+.codex-visual-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.codex-visual-empty-body {
+    font-size: 12px;
+    max-width: 360px;
+    line-height: 1.4;
+}
+
+.codex-visual-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+}
+
+.codex-visual-item {
+    /* Floor — content always has room. Override per-visual if needed. */
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+
+    &:hover { transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+}
+
+.codex-visual-label {
+    line-height: 1.2;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.codex-visual-value {
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+/* Cert + a11y: respect prefers-reduced-motion on every animation. */
+@media (prefers-reduced-motion: reduce) {
+    .codex-visual-item { transition: none; }
+}
