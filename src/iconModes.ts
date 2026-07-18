@@ -52,7 +52,7 @@ export interface IconTokens {
     sg: string; sa: string; sm: string;
     vtrack: string; vedge: string;
     house: string; housebd: string; facefeat: string;
-    lampdim: string; socket: string; glyph: string;
+    socket: string; glyph: string;
     glow: boolean;
 }
 
@@ -62,14 +62,14 @@ export function iconTokens(theme: Theme): IconTokens {
         sg: "#8aff2b", sa: "#ffb020", sm: "#ff3b52",
         vtrack: "#1b1b38", vedge: "rgba(255,255,255,0.28)",
         house: "#12122a", housebd: "rgba(124,58,237,0.4)", facefeat: "#07071a",
-        lampdim: "#181830", socket: "#05050f", glyph: "#0a0a12",
+        socket: "#05050f", glyph: "#0a0a12",
         glow: true,
     } : {
         val: "#14141f", unit: "#5b5b74", accent: "#0384a3",
         sg: "#1f8a3b", sa: "#a85f00", sm: "#c81d6b",
         vtrack: "#e2e4ef", vedge: "rgba(0,0,0,0.24)",
         house: "#15152e", housebd: "rgba(0,0,0,0.25)", facefeat: "#ffffff",
-        lampdim: "#181830", socket: "#05050f", glyph: "#0a0a12",
+        socket: "#05050f", glyph: "#0a0a12",
         glow: false,
     };
 }
@@ -283,17 +283,20 @@ export function renderTrafficLight(ctx: IconGaugeCtx): void {
     g.append("rect").attr("x", 74).attr("y", 14).attr("width", 52).attr("height", 154).attr("rx", 12)
         .attr("fill", hc ? bg : t.house).attr("stroke", hc ? fg : t.housebd).attr("stroke-width", 2);
 
-    const lamps: [number, Band, string, string][] = [
-        [48, "dang", "url(#igTlRed)", "url(#igGlowRed)"],
-        [90, "warn", "url(#igTlAmber)", "url(#igGlowAmber)"],
-        [132, "succ", "url(#igTlGreen)", "url(#igGlowGreen)"],
+    // Unlit lamps read as deeply-dimmed lenses of their own colour (live-QA
+    // 2026-07-18: the board's flat #181830 lampdim vanished into the housing —
+    // "blank circles"). Deviation from the board, Neil's call.
+    const lamps: [number, Band, string, string, string][] = [
+        [48, "dang", "url(#igTlRed)", "url(#igGlowRed)", "#58202b"],
+        [90, "warn", "url(#igTlAmber)", "url(#igGlowAmber)", "#5a4416"],
+        [132, "succ", "url(#igTlGreen)", "url(#igGlowGreen)", "#23511f"],
     ];
-    for (const [cy, b, grad, glow] of lamps) {
+    for (const [cy, b, grad, glow, dim] of lamps) {
         g.append("circle").attr("cx", 100).attr("cy", cy).attr("r", 21).attr("fill", hc ? bg : t.socket)
             .attr("stroke", hc ? fg : "none").attr("stroke-width", hc ? 1.5 : 0);
         const lit = b === band;
         g.append("circle").attr("cx", 100).attr("cy", cy).attr("r", 18)
-            .attr("fill", hc ? (lit ? fg : bg) : (lit ? grad : t.lampdim))
+            .attr("fill", hc ? (lit ? fg : bg) : (lit ? grad : dim))
             .attr("filter", (lit && !hc && t.glow) ? glow : null);
     }
     if (ctx.showGlyph) {
