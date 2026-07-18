@@ -130,10 +130,6 @@ export class Visual implements IVisual {
             // Clear root.
             while (this.rootDiv.firstChild) this.rootDiv.removeChild(this.rootDiv.firstChild);
 
-            // Title — render first so it's at the top of the iframe and captures
-            // right-clicks where PBI's auto-title chrome would otherwise sit.
-            this.renderTitle();
-
             // ── Theme + suite chrome (Background paints the ROOT so one
             // background fills the tile; Border is CSS on the tile; corner
             // overlay refreshes to the theme accent) ──
@@ -141,6 +137,10 @@ export class Visual implements IVisual {
             const bgHex = background.backgroundColor.value?.value ?? "#ffffff";
             const bgTransparencyPct = background.transparency.value ?? 100;
             const theme: Theme = themeFor(bgHex);
+
+            // Title — render first so it's at the top of the iframe and captures
+            // right-clicks where PBI's auto-title chrome would otherwise sit.
+            this.renderTitle(theme);
             this.target.style.background = this.isHighContrast
                 ? this.hcBackground : toRgba(bgHex, bgTransparencyPct);
             applyBorder(this.target, this.formattingSettings.visualBorder, {
@@ -181,7 +181,7 @@ export class Visual implements IVisual {
 
     // ─── Title ─────────────────────────────────────────────────
 
-    private renderTitle(): void {
+    private renderTitle(theme: Theme): void {
         const t = this.formattingSettings.titleSettings;
         if (!t?.showTitle?.value || !t?.titleText?.value) return;
         const el = document.createElement("div");
@@ -193,7 +193,10 @@ export class Visual implements IVisual {
         el.style.fontStyle = t.titleItalic?.value ? "italic" : "normal";
         el.style.textDecoration = t.titleUnderline?.value ? "underline" : "none";
         el.style.textAlign = textAlignFor(t.titleAlign?.value as string);
-        const c = t.titleColor?.value?.value;
+        // Untouched default ink flips to the dark-theme text token (suite
+        // idiom, same sentinel as Zone Gauge); a user-set colour is honoured.
+        const set = t.titleColor?.value?.value;
+        const c = set === "#1a1a2e" && theme === "dark" ? surfaceTokens("dark").text : set;
         if (c) el.style.color = this.isHighContrast ? this.hcForeground : c;
         this.rootDiv.appendChild(el);
     }
