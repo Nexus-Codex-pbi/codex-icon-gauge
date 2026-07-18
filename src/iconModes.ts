@@ -222,7 +222,10 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
     const g = fitGroup(ctx, 200, 150);
     const hc = ctx.hc, fg = ctx.hcFg;
     const rating = Math.max(0, Math.min(ctx.pct / 100, 1)) * 5;
-    const rowFillW = +((rating / 5) * 180).toFixed(2);
+    // Whole stars advance by the 38px pitch; the partial star fills its actual
+    // 34px glyph width (board's rating/5*180 left the 5th star tip unfilled at 5.0).
+    const whole = Math.floor(rating);
+    const rowFillW = +(whole * 38 + (rating - whole) * 34).toFixed(2);
     const clr = hc ? fg : stateColor(t, ctx.band);
 
     const track = g.append("g").attr("transform", "translate(10,40)");
@@ -236,7 +239,11 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
     defs.select(`#${clipId}`).remove();
     defs.append("clipPath").attr("id", clipId)
         .append("rect").attr("x", 10).attr("y", 38).attr("width", rowFillW).attr("height", 44);
-    const fill = g.append("g").attr("transform", "translate(10,40)").attr("clip-path", `url(#${clipId})`);
+    // Clip on an UNTRANSLATED wrapper: a group's own transform moves its clip-path
+    // with it, which shoved the board's y38 clip window below the y1-33 stars and
+    // clipped the whole fill layer away (the all-track-colour bug).
+    const fill = g.append("g").attr("clip-path", `url(#${clipId})`)
+        .append("g").attr("transform", "translate(10,40)");
     for (let i = 0; i < 5; i++) {
         fill.append("path").attr("d", STAR).attr("transform", `translate(${i * 38},0)`).attr("fill", clr);
     }
