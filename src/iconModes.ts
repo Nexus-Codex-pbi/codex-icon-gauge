@@ -39,6 +39,9 @@ export interface IconGaugeCtx {
     showSub: boolean;
     valueColor: string | null;  // null = theme token
     unitColor: string | null;
+    /** Status-line ink derived from the headline ink for the visible surface
+     *  (mutedInk); used whenever the author has not set an explicit colour. */
+    statusInk: string;
     valueFont: FontOpts;
     unitFont: FontOpts;
     vessel: string;         // fill-vessel shape key
@@ -151,7 +154,7 @@ function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: nu
     applyFont(vt, ctx.valueFont, boardValPx, "700");
     if (ctx.showSub && ctx.subText) {
         const ut = g.append("text").attr("x", x).attr("y", ySub).attr("text-anchor", "middle")
-            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || t.unit))
+            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || ctx.statusInk || t.unit))
             .style("letter-spacing", "0.06em")
             .text(ctx.subText);
         applyFont(ut, ctx.unitFont, 12, "600");
@@ -256,7 +259,7 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
         applyFont(vt, ctx.valueFont, 26, "700");
         if (ctx.showSub && ctx.subText) {
             const ut = g.append("text").attr("x", 100).attr("y", 134).attr("text-anchor", "middle")
-                .attr("fill", hc ? fg : (ctx.unitColor || t.unit))
+                .attr("fill", hc ? fg : (ctx.unitColor || ctx.statusInk || t.unit))
                 .style("letter-spacing", "0.06em")
                 .text(ctx.subText);
             applyFont(ut, ctx.unitFont, 12, "600");

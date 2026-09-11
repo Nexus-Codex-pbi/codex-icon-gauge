@@ -19,7 +19,7 @@ import DataView = powerbi.DataView;
 
 import { VisualFormattingSettingsModel, textAlignFor } from "./settings";
 
-import { toRgba, compositeOver, contrastInk } from "./shared/colorHelpers";
+import { toRgba, compositeOver, contrastInk, mutedInk } from "./shared/colorHelpers";
 import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
@@ -184,9 +184,15 @@ export class Visual implements IVisual {
             // follows its own ink so chrome and text stay one palette.
             const lightSurfaceInk = iconTokens("light").val;   // #14141f
             const darkSurfaceInk = iconTokens("dark").val;     // #e8e6ff
-            const theme: Theme =
-                contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk) === lightSurfaceInk
-                    ? "light" : "dark";
+            const headlineInk = contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk);
+            const theme: Theme = headlineInk === lightSurfaceInk ? "light" : "dark";
+            // The status line is de-emphasised, not faint: the fixed muted token
+            // sat at 1.2-1.9:1 on a mid-grey tile whichever theme was picked,
+            // because both muted tokens are themselves mid-greys. Derive it from
+            // the ink we just chose instead — mixed toward the surface for the
+            // de-emphasis, backed off until it clears 4.5:1 (NEXUS cycle-06 §2,
+            // round 2). HC still overrides with the system foreground.
+            const statusInk = mutedInk(headlineInk, visibleSurface);
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
@@ -222,7 +228,7 @@ export class Visual implements IVisual {
                 return;
             }
 
-            this.renderGauge(reading, mode, theme, options.viewport.width, options.viewport.height);
+            this.renderGauge(reading, mode, theme, statusInk, options.viewport.width, options.viewport.height);
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, String(e));
@@ -345,7 +351,7 @@ export class Visual implements IVisual {
 
     // ─── Render ────────────────────────────────────────────────
 
-    private renderGauge(reading: Reading, mode: string, theme: Theme, width: number, height: number): void {
+    private renderGauge(reading: Reading, mode: string, theme: Theme, statusInk: string, width: number, height: number): void {
         const ig = this.formattingSettings.iconGauge;
         const vs = this.formattingSettings.valueStyle;
         const ls = this.formattingSettings.labelStyle;
@@ -395,6 +401,7 @@ export class Visual implements IVisual {
             showSub: !!ig.showSub.value,
             valueColor: vs.color.value.value || null,
             unitColor: ls.color.value.value || null,
+            statusInk,
             valueFont: {
                 family: vs.fontFamily.value || null,
                 size: vs.fontSize.value || null,
