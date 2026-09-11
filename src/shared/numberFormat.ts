@@ -69,11 +69,12 @@ export function formatModelNumber(n: number, format: string | null | undefined, 
 
     const { min, max } = fractionDigitsFor(format);
 
-    // Currency formats: "$#,##0", "$#,##0.00", "$#,##0.##", "£#,##0"…
-    // Detection regex left exactly as the visuals had it; only the digit
-    // derivation changes, because `(?:\.0+)?` is optional and never
-    // contributed to the captured symbol.
-    const cm = format.match(/^([^#0]*)(#[,#]*0(?:\.0+)?)/);
+    // Currency formats: "$#,##0", "$#,##0.00", "$#,##0.##", "£#,##0", "$0.00"…
+    // The visuals' original regex required the digit run to START with `#`, so
+    // "$0.00" — a format Power BI itself emits — matched nothing and rendered
+    // 12.34 with no symbol (NEXUS cycle-04 §2, found 2026-09-11 after the
+    // min/max fix shipped). The digit run may begin with `0` or `#`.
+    const cm = format.match(/^([^#0]*)([#0][,#0]*(?:\.[0#]+)?)/);
     if (cm && cm[1] && /[$£€¥]/.test(cm[1])) {
         const sym = cm[1].trim();
         return `${sym}${n.toLocaleString(locale, { minimumFractionDigits: min, maximumFractionDigits: max })}`;
