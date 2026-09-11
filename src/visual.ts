@@ -440,6 +440,9 @@ export class Visual implements IVisual {
     }
 
     public destroy(): void {
+        // Drop the in-flight licence check FIRST: its redraw callback replays
+        // update() against a torn-down target otherwise (NEXUS lifecycle finding).
+        this.licenseGate.dispose();
         while (this.rootDiv && this.rootDiv.firstChild) this.rootDiv.removeChild(this.rootDiv.firstChild);
         this.rootDiv = null;
         this.target = null;
