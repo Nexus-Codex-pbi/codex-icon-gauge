@@ -238,7 +238,8 @@ export class Visual implements IVisual {
 
             const reading = dv ? this.parseReading(dv) : null;
             const readingKey = reading?.row.selectionId?.getKey();
-            if (this.selectionManager.getSelectionIds().some(id => id.getKey() !== readingKey)) {
+            const selectedIds = this.selectionManager.getSelectionIds() as ISelectionId[];
+            if (selectedIds.some(id => id.getKey() !== readingKey)) {
                 this.selectionManager.clear();
             }
             if (reading === null) {
