@@ -19,7 +19,7 @@ import DataView = powerbi.DataView;
 
 import { VisualFormattingSettingsModel, textAlignFor } from "./settings";
 
-import { toRgba } from "./shared/colorHelpers";
+import { toRgba, compositeOver, surfaceTone } from "./shared/colorHelpers";
 import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
@@ -31,14 +31,6 @@ import {
 } from "./iconModes";
 import { LicenseGate } from "./shared/licensing";
 import { formatModelNumber } from "./shared/numberFormat";
-
-/** Luminance theme pick off the shared Background card (suite idiom). */
-function themeFor(hex: string): Theme {
-    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/i.exec(hex || "");
-    if (!m) return "light";
-    const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5 ? "dark" : "light";
-}
 
 interface RowData {
     category: string;
@@ -161,7 +153,17 @@ export class Visual implements IVisual {
             const background = this.formattingSettings.background;
             const bgHex = background.backgroundColor.value?.value ?? "#ffffff";
             const bgTransparencyPct = background.transparency.value ?? 100;
-            const theme: Theme = themeFor(bgHex);
+            // Adaptive ink must be judged against the surface a viewer actually
+            // sees, not the raw Background swatch: the fill is painted WITH its
+            // transparency, so a white tile at 100% transparency over a dark page
+            // is a dark surface and needs light ink (NEXUS cycle-06 §2, class 1).
+            // What sits behind is the host theme's background; this visual paints
+            // nothing else beneath its own tile.
+            const behindHex = colorPalette.background?.value || "#ffffff";
+            const visibleSurface = this.isHighContrast
+                ? this.hcBackground
+                : compositeOver(bgHex, bgTransparencyPct, behindHex);
+            const theme: Theme = surfaceTone(visibleSurface);
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
