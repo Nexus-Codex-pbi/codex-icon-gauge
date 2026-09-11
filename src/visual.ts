@@ -30,6 +30,7 @@ import {
     renderTrafficLight, renderStateMorph, morphLabel, trafficLabel,
 } from "./iconModes";
 import { LicenseGate } from "./shared/licensing";
+import { formatModelNumber } from "./shared/numberFormat";
 
 /** Luminance theme pick off the shared Background card (suite idiom). */
 function themeFor(hex: string): Theme {
@@ -415,22 +416,9 @@ export class Visual implements IVisual {
 
     private formatValue(n: number, format: string | null): string {
         if (n == null || !isFinite(n)) return String(n ?? "");
-        if (!format) return n.toLocaleString(undefined);
-        if (format.indexOf("%") >= 0) {
-            const m = format.match(/0\.(0+)%/);
-            const dec = m ? m[1].length : 0;
-            return `${(n * 100).toFixed(dec)}%`;
-        }
-        const cm = format.match(/^([^#0]*)(#[,#]*0(?:\.0+)?)/);
-        if (cm && cm[1] && /[\$£€¥]/.test(cm[1])) {
-            const sym = cm[1].trim();
-            const dm = format.match(/\.([0]+)/);
-            const dec = dm ? dm[1].length : 0;
-            return `${sym}${n.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
-        }
-        const dm = format.match(/\.([0#]+)/);
-        const dec = dm ? dm[1].replace(/#/g, "").length : 0;
-        return n.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        // Optional `#` digits are honoured: a single derived count used as both
+        // min and max rendered `0.##` 12.34 as "12" (NEXUS cycle-02 F3).
+        return formatModelNumber(n, format);
     }
 
     // ─── Lifecycle ─────────────────────────────────────────────
