@@ -32,6 +32,18 @@ import {
 import { LicenseGate } from "./shared/licensing";
 import { formatModelNumber } from "./shared/numberFormat";
 
+/** A reading is a number only when it is present AND finite. Blank strings,
+ *  non-numeric text, Infinity and NaN are GAPS, not zeros: `Number("")` is 0
+ *  and `Number("Infinity")` is finite-looking to a null check, which rendered
+ *  `NaN%` and a success-coloured `Infinity%` (NEXUS cycle-06 §7). */
+function finiteOrNull(raw: unknown): number | null {
+    if (raw == null) return null;
+    if (typeof raw === "number") return isFinite(raw) ? raw : null;
+    if (typeof raw === "string" && raw.trim() === "") return null;
+    const n = Number(raw);
+    return isFinite(n) ? n : null;
+}
+
 interface RowData {
     category: string;
     value: number | null;
@@ -267,7 +279,7 @@ export class Visual implements IVisual {
         for (let i = 0; i < n; i++) {
             const category = String(labels.values[i] ?? "");
             const raw = valueCol.values?.[i];
-            const value = (typeof raw === "number") ? raw : (raw == null ? null : Number(raw));
+            const value = finiteOrNull(raw);
 
             const selectionId = this.host.createSelectionIdBuilder()
                 .withCategory(labels, i)
@@ -311,10 +323,10 @@ export class Visual implements IVisual {
         const valuesArr = dv.categorical?.values || [];
         const targetCol = valuesArr.find(v => v.source.roles && v.source.roles["target"]);
         const rawT = targetCol?.values?.[0];
-        const target = (typeof rawT === "number") ? rawT : (rawT == null ? null : Number(rawT));
+        const target = finiteOrNull(rawT);
         return {
             value: rows[0].value,
-            target: (target != null && isFinite(target)) ? target : null,
+            target,
             targetFormat: targetCol?.source.format ?? null,
             row: rows[0],
         };
