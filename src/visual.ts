@@ -27,7 +27,7 @@ import { applyCardSignature } from "./shared/cardSignatureSettings";
 import { applyBorder } from "./shared/borderSettings";
 import {
     IconGaugeCtx, bandFor, iconTokens, renderFillVessel, renderIconRow,
-    renderTrafficLight, renderStateMorph, morphLabel, trafficLabel,
+    renderTrafficLight, renderStateMorph, morphLabel, trafficLabel, fitGaugeContents,
 } from "./iconModes";
 import { LicenseGate } from "./shared/licensing";
 import { formatModelNumber } from "./shared/numberFormat";
@@ -399,16 +399,20 @@ export class Visual implements IVisual {
         // SVG host below the title
         const titleEl = this.rootDiv.querySelector(".codex-visual-title") as HTMLElement | null;
         const titleHeight = titleEl ? (titleEl.offsetHeight || 0) : 0;
+        const bodyHeight = Math.max(0, this.rootDiv.clientHeight - titleHeight);
+        const bodyWidth = Math.max(0, this.rootDiv.clientWidth);
+        const textFits = bodyHeight >= 64 && bodyWidth >= 64;
         const svgNS = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNS, "svg");
         svg.setAttribute("width", "100%");
-        svg.setAttribute("height", String(Math.max(10, height - titleHeight)));
+        svg.setAttribute("height", String(bodyHeight));
         svg.setAttribute("class", "codex-gauge");
         svg.setAttribute("role", reading.row.selectionId ? "button" : "img");
         svg.setAttribute("aria-label", [reading.row.category, `${Math.round(pct)}%`, subText].filter(Boolean).join(", "));
         if (reading.row.selectionId) svg.setAttribute("tabindex", "0");
         svg.style.color = hc ? this.hcForeground : headlineInk;
         svg.style.display = "block";
+        svg.style.flexShrink = "0";
         const defs = document.createElementNS(svgNS, "defs") as SVGDefsElement;
         const group = document.createElementNS(svgNS, "g") as SVGGElement;
         svg.appendChild(defs);
@@ -418,13 +422,13 @@ export class Visual implements IVisual {
         const surf = surfaceTokens(theme);
         const ctx: IconGaugeCtx = {
             group, defs,
-            width, height: height - titleHeight, titleHeight: 0,
+            width: bodyWidth, height: bodyHeight, titleHeight: 0,
             theme, hc, hcFg: this.hcForeground, hcBg: this.hcBackground,
             pct, band,
             valText: `${Math.round(pct)}%`,
             subText,
-            showValue: !!ig.showValue.value,
-            showSub: !!ig.showSub.value,
+            showValue: textFits && !!ig.showValue.value,
+            showSub: textFits && !!ig.showSub.value,
             valueColor: vs.color.value.value || null,
             unitColor: ls.color.value.value || null,
             valueAlign: String(vs.align.value),
@@ -453,6 +457,7 @@ export class Visual implements IVisual {
             case "stateMorph": renderStateMorph(ctx); break;
             default: renderFillVessel(ctx); break;
         }
+        fitGaugeContents(ctx);
 
         // Interactions: tooltip + click-to-filter on the whole gauge
         const row = reading.row;

@@ -137,33 +137,67 @@ function applyFont(sel: any, f: FontOpts, boardPx: number): void {
 function fitGroup(ctx: IconGaugeCtx, designW: number, designH: number): Selection<SVGGElement, unknown, null, undefined> {
     const sel = select(ctx.group);
     sel.selectAll("*").remove();
-    const availH = Math.max(10, ctx.height - ctx.titleHeight);
-    const m = Math.max(12, Math.min(ctx.width, availH) * 0.07);
-    const iw = Math.max(10, ctx.width - 2 * m);
-    const ih = Math.max(10, availH - 2 * m);
+    const group = sel.append("g").attr("data-design-width", designW).attr("data-design-height", designH);
+    positionGroup(ctx, group, designW, designH);
+    return group;
+}
+
+function positionGroup(ctx: IconGaugeCtx, group: any, designW: number, designH: number, x = 0, y = 0): void {
+    const availW = Math.max(0, ctx.width);
+    const availH = Math.max(0, ctx.height - ctx.titleHeight);
+    const shortest = Math.min(availW, availH);
+    const m = Math.min(Math.max(12, shortest * 0.07), shortest / 4);
+    const iw = Math.max(0, availW - 2 * m);
+    const ih = Math.max(0, availH - 2 * m);
     const s = Math.min(iw / designW, ih / designH);
-    const tx = (ctx.width - designW * s) / 2;
-    const ty = ctx.titleHeight + (availH - designH * s) / 2;
-    return sel.append("g").attr("transform", `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${s.toFixed(4)})`);
+    const tx = (availW - designW * s) / 2 - x * s;
+    const ty = ctx.titleHeight + (availH - designH * s) / 2 - y * s;
+    group.attr("transform", `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${s.toFixed(4)})`);
+}
+
+export function fitGaugeContents(ctx: IconGaugeCtx): void {
+    const group = ctx.group.firstElementChild as SVGGElement;
+    if (!group) return;
+    const box = group.getBBox();
+    const x = Math.min(0, box.x - 2), y = Math.min(0, box.y - 2);
+    const width = Math.max(Number(group.getAttribute("data-design-width")), box.x + box.width + 2) - x;
+    const height = Math.max(Number(group.getAttribute("data-design-height")), box.y + box.height + 2) - y;
+    positionGroup(ctx, select(group), width, height, x, y);
 }
 
 
 function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: number, ySub: number, boardValPx: number): void {
     const position = (align: string) => align === "left" ? 12 : align === "right" ? 188 : x;
     const anchor = (align: string) => align === "left" ? "start" : align === "right" ? "end" : "middle";
+    const graphics = g.node().getBBox();
+    let bottom = graphics.y + graphics.height;
+    // Fit long text horizontally, then place each line below the previous ink.
+    const fitLine = (line: any): void => {
+        const node = line.node() as SVGTextElement;
+        let box = node.getBBox();
+        if (box.width > 176) {
+            line.style("font-size", `${parseFloat(line.style("font-size")) * 176 / box.width}px`);
+            box = node.getBBox();
+        }
+        if (box.y < bottom + 4) line.attr("y", Number(line.attr("y")) + bottom + 4 - box.y);
+        box = node.getBBox();
+        bottom = box.y + box.height;
+    };
     if (ctx.showValue) {
         const vt = g.append("text").attr("x", position(ctx.valueAlign)).attr("y", yVal).attr("text-anchor", anchor(ctx.valueAlign))
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || ctx.headlineInk))
             .style("font-feature-settings", '"tnum"')
             .text(ctx.valText);
         applyFont(vt, ctx.valueFont, boardValPx);
+        fitLine(vt);
     }
     if (ctx.showSub && ctx.subText) {
         const ut = g.append("text").attr("x", position(ctx.unitAlign)).attr("y", ySub).attr("text-anchor", anchor(ctx.unitAlign))
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || ctx.statusInk || t.unit))
-            .style("letter-spacing", "0.06em")
+            .style("letter-spacing", "0")
             .text(ctx.subText);
         applyFont(ut, ctx.unitFont, 12);
+        fitLine(ut);
     }
 }
 
