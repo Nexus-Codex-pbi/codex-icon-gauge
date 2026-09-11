@@ -19,14 +19,14 @@ import DataView = powerbi.DataView;
 
 import { VisualFormattingSettingsModel, textAlignFor } from "./settings";
 
-import { toRgba, compositeOver, surfaceTone } from "./shared/colorHelpers";
+import { toRgba, compositeOver, contrastInk } from "./shared/colorHelpers";
 import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
 import { applyCardSignature } from "./shared/cardSignatureSettings";
 import { applyBorder } from "./shared/borderSettings";
 import {
-    IconGaugeCtx, bandFor, renderFillVessel, renderIconRow,
+    IconGaugeCtx, bandFor, iconTokens, renderFillVessel, renderIconRow,
     renderTrafficLight, renderStateMorph, morphLabel, trafficLabel,
 } from "./iconModes";
 import { LicenseGate } from "./shared/licensing";
@@ -175,7 +175,18 @@ export class Visual implements IVisual {
             const visibleSurface = this.isHighContrast
                 ? this.hcBackground
                 : compositeOver(bgHex, bgTransparencyPct, behindHex);
-            const theme: Theme = surfaceTone(visibleSurface);
+            // The ink is then MEASURED against that surface rather than bucketed
+            // by luminance. A Rec.601 tone bucket re-inked opaque mid-grey tiles
+            // sitting near its threshold and misread saturated hues (#01bfe3
+            // buckets "dark" yet carries the dark ink at 8.3:1 against the light
+            // ink's 1.8:1). contrastInk() returns whichever of the two ink tokens
+            // the theme already provides wins on WCAG contrast; the theme then
+            // follows its own ink so chrome and text stay one palette.
+            const lightSurfaceInk = iconTokens("light").val;   // #14141f
+            const darkSurfaceInk = iconTokens("dark").val;     // #e8e6ff
+            const theme: Theme =
+                contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk) === lightSurfaceInk
+                    ? "light" : "dark";
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
