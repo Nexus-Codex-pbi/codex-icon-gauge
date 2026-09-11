@@ -237,7 +237,7 @@ export class Visual implements IVisual {
 
             const reading = dv ? this.parseReading(dv) : null;
             if (reading === null) {
-                this.renderEmpty();
+                this.renderEmpty(statusInk);
                 this.events.renderingFinished(options);
                 return;
             }
@@ -276,9 +276,10 @@ export class Visual implements IVisual {
     // right-click reaches our DOM regardless of which region the cert
     // reviewer hits.
 
-    private renderEmpty(): void {
+    private renderEmpty(ink: string): void {
         const wrap = document.createElement("div");
         wrap.className = "codex-visual-empty";
+        wrap.style.color = this.isHighContrast ? this.hcForeground : ink;
         const h = document.createElement("div");
         h.className = "codex-visual-empty-title";
         h.textContent = this.localizationManager.getDisplayName("Visual_Short_Description") || "Codex Visual";
