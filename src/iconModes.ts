@@ -125,10 +125,10 @@ export function ensureIconDefs(defs: SVGDefsElement): void {
 const SEGOE = "Segoe UI, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif";
 
 
-function applyFont(sel: any, f: FontOpts, boardPx: number, fallbackWeight: string): void {
+function applyFont(sel: any, f: FontOpts, boardPx: number): void {
     sel.style("font-family", f.family || SEGOE)
         .style("font-size", `${(f.size && f.size > 0) ? f.size : boardPx}px`)
-        .style("font-weight", f.bold ? "700" : fallbackWeight)
+        .style("font-weight", f.bold ? "700" : "400")
         .style("font-style", f.italic ? "italic" : "normal")
         .style("text-decoration", f.underline ? "underline" : "none");
 }
@@ -155,14 +155,14 @@ function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: nu
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || t.val))
             .style("font-feature-settings", '"tnum"')
             .text(ctx.valText);
-        applyFont(vt, ctx.valueFont, boardValPx, "700");
+        applyFont(vt, ctx.valueFont, boardValPx);
     }
     if (ctx.showSub && ctx.subText) {
         const ut = g.append("text").attr("x", position(ctx.unitAlign)).attr("y", ySub).attr("text-anchor", anchor(ctx.unitAlign))
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || ctx.statusInk || t.unit))
             .style("letter-spacing", "0.06em")
             .text(ctx.subText);
-        applyFont(ut, ctx.unitFont, 12, "600");
+        applyFont(ut, ctx.unitFont, 12);
     }
 }
 
