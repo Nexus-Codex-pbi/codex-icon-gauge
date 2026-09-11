@@ -44,6 +44,7 @@ export interface IconGaugeCtx {
     /** Status-line ink derived from the headline ink for the visible surface
      *  (mutedInk); used whenever the author has not set an explicit colour. */
     statusInk: string;
+    headlineInk: string;
     valueFont: FontOpts;
     unitFont: FontOpts;
     vessel: string;         // fill-vessel shape key
@@ -152,7 +153,7 @@ function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: nu
     const anchor = (align: string) => align === "left" ? "start" : align === "right" ? "end" : "middle";
     if (ctx.showValue) {
         const vt = g.append("text").attr("x", position(ctx.valueAlign)).attr("y", yVal).attr("text-anchor", anchor(ctx.valueAlign))
-            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || t.val))
+            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || ctx.headlineInk))
             .style("font-feature-settings", '"tnum"')
             .text(ctx.valText);
         applyFont(vt, ctx.valueFont, boardValPx);

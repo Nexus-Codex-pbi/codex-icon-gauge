@@ -19,7 +19,7 @@ import DataView = powerbi.DataView;
 
 import { VisualFormattingSettingsModel, textAlignFor } from "./settings";
 
-import { toRgba, compositeOver, contrastInk, mutedInk } from "./shared/colorHelpers";
+import { toRgba, compositeOver, contrastInk, contrastRatio, mutedInk } from "./shared/colorHelpers";
 import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
@@ -195,8 +195,11 @@ export class Visual implements IVisual {
             // follows its own ink so chrome and text stay one palette.
             const lightSurfaceInk = iconTokens("light").val;   // #14141f
             const darkSurfaceInk = iconTokens("dark").val;     // #e8e6ff
-            const headlineInk = contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk);
-            const theme: Theme = headlineInk === lightSurfaceInk ? "light" : "dark";
+            const tokenInk = contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk);
+            const theme: Theme = tokenInk === lightSurfaceInk ? "light" : "dark";
+            // Both brand inks can miss small-text contrast on mid-grey.
+            const headlineInk = contrastRatio(tokenInk, visibleSurface) >= 4.5
+                ? tokenInk : contrastInk(visibleSurface, "#000000", "#ffffff");
             // The status line is de-emphasised, not faint: the fixed muted token
             // sat at 1.2-1.9:1 on a mid-grey tile whichever theme was picked,
             // because both muted tokens are themselves mid-greys. Derive it from
@@ -207,7 +210,7 @@ export class Visual implements IVisual {
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
-            this.renderTitle(theme);
+            this.renderTitle(headlineInk);
             this.target.style.background = this.isHighContrast
                 ? this.hcBackground : toRgba(bgHex, bgTransparencyPct);
             applyBorder(this.target, this.formattingSettings.visualBorder, {
@@ -239,7 +242,7 @@ export class Visual implements IVisual {
                 return;
             }
 
-            this.renderGauge(reading, mode, theme, statusInk, options.viewport.width, options.viewport.height);
+            this.renderGauge(reading, mode, theme, headlineInk, statusInk, options.viewport.width, options.viewport.height);
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, String(e));
@@ -248,7 +251,7 @@ export class Visual implements IVisual {
 
     // ─── Title ─────────────────────────────────────────────────
 
-    private renderTitle(theme: Theme): void {
+    private renderTitle(headlineInk: string): void {
         const t = this.formattingSettings.titleSettings;
         if (!t?.showTitle?.value || !t?.titleText?.value) return;
         const el = document.createElement("div");
@@ -260,10 +263,9 @@ export class Visual implements IVisual {
         el.style.fontStyle = t.titleItalic?.value ? "italic" : "normal";
         el.style.textDecoration = t.titleUnderline?.value ? "underline" : "none";
         el.style.textAlign = textAlignFor(t.titleAlign?.value as string);
-        // Untouched default ink flips to the dark-theme text token (suite
-        // idiom, same sentinel as Zone Gauge); a user-set colour is honoured.
+        // Default title ink follows the measured surface; custom ink is retained.
         const set = t.titleColor?.value?.value;
-        const c = set === "#1a1a2e" && theme === "dark" ? surfaceTokens("dark").text : set;
+        const c = !set || set === "#1a1a2e" ? headlineInk : set;
         if (c) el.style.color = this.isHighContrast ? this.hcForeground : c;
         this.rootDiv.appendChild(el);
     }
@@ -362,7 +364,7 @@ export class Visual implements IVisual {
 
     // ─── Render ────────────────────────────────────────────────
 
-    private renderGauge(reading: Reading, mode: string, theme: Theme, statusInk: string, width: number, height: number): void {
+    private renderGauge(reading: Reading, mode: string, theme: Theme, headlineInk: string, statusInk: string, width: number, height: number): void {
         const ig = this.formattingSettings.iconGauge;
         const vs = this.formattingSettings.valueStyle;
         const ls = this.formattingSettings.labelStyle;
@@ -397,7 +399,7 @@ export class Visual implements IVisual {
         svg.setAttribute("role", reading.row.selectionId ? "button" : "img");
         svg.setAttribute("aria-label", [reading.row.category, `${Math.round(pct)}%`, subText].filter(Boolean).join(", "));
         if (reading.row.selectionId) svg.setAttribute("tabindex", "0");
-        svg.style.color = hc ? this.hcForeground : iconTokens(theme).val;
+        svg.style.color = hc ? this.hcForeground : headlineInk;
         svg.style.display = "block";
         const defs = document.createElementNS(svgNS, "defs") as SVGDefsElement;
         const group = document.createElementNS(svgNS, "g") as SVGGElement;
@@ -420,6 +422,7 @@ export class Visual implements IVisual {
             valueAlign: String(vs.align.value),
             unitAlign: String(ls.align.value),
             statusInk,
+            headlineInk,
             valueFont: {
                 family: vs.fontFamily.value || null,
                 size: vs.fontSize.value || null,
