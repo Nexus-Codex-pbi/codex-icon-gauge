@@ -401,6 +401,8 @@ export class Visual implements IVisual {
             showSub: !!ig.showSub.value,
             valueColor: vs.color.value.value || null,
             unitColor: ls.color.value.value || null,
+            valueAlign: String(vs.align.value),
+            unitAlign: String(ls.align.value),
             statusInk,
             valueFont: {
                 family: vs.fontFamily.value || null,

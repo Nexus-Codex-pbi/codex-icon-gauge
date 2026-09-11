@@ -39,6 +39,8 @@ export interface IconGaugeCtx {
     showSub: boolean;
     valueColor: string | null;  // null = theme token
     unitColor: string | null;
+    valueAlign: string;
+    unitAlign: string;
     /** Status-line ink derived from the headline ink for the visible surface
      *  (mutedInk); used whenever the author has not set an explicit colour. */
     statusInk: string;
@@ -146,15 +148,17 @@ function fitGroup(ctx: IconGaugeCtx, designW: number, designH: number): Selectio
 
 
 function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: number, ySub: number, boardValPx: number): void {
+    const position = (align: string) => align === "left" ? 12 : align === "right" ? 188 : x;
+    const anchor = (align: string) => align === "left" ? "start" : align === "right" ? "end" : "middle";
     if (ctx.showValue) {
-        const vt = g.append("text").attr("x", x).attr("y", yVal).attr("text-anchor", "middle")
+        const vt = g.append("text").attr("x", position(ctx.valueAlign)).attr("y", yVal).attr("text-anchor", anchor(ctx.valueAlign))
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || t.val))
             .style("font-feature-settings", '"tnum"')
             .text(ctx.valText);
         applyFont(vt, ctx.valueFont, boardValPx, "700");
     }
     if (ctx.showSub && ctx.subText) {
-        const ut = g.append("text").attr("x", x).attr("y", ySub).attr("text-anchor", "middle")
+        const ut = g.append("text").attr("x", position(ctx.unitAlign)).attr("y", ySub).attr("text-anchor", anchor(ctx.unitAlign))
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || ctx.statusInk || t.unit))
             .style("letter-spacing", "0.06em")
             .text(ctx.subText);
