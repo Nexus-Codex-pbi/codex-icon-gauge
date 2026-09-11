@@ -187,7 +187,7 @@ export function renderFillVessel(ctx: IconGaugeCtx): void {
         .append("path").attr("d", vesselD).attr("transform", vesselT);
 
     const clipped = g.append("g").attr("clip-path", `url(#${clipId})`);
-    clipped.append("rect").attr("x", 50).attr("y", 26).attr("width", 100).attr("height", 130)
+    clipped.append("rect").attr("x", 30).attr("y", 26).attr("width", 140).attr("height", 130)
         .attr("fill", hc ? "none" : t.vtrack);
 
     const liquid = vessel === "heart" || vessel === "droplet";
