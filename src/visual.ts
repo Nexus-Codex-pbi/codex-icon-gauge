@@ -236,6 +236,10 @@ export class Visual implements IVisual {
             ig.morphStyle.visible = mode === "stateMorph";
 
             const reading = dv ? this.parseReading(dv) : null;
+            const readingKey = reading?.row.selectionId?.getKey();
+            if (this.selectionManager.getSelectionIds().some(id => id.getKey() !== readingKey)) {
+                this.selectionManager.clear();
+            }
             if (reading === null) {
                 this.renderEmpty(statusInk);
                 this.events.renderingFinished(options);
