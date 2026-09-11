@@ -39,7 +39,7 @@ import { formatModelNumber } from "./shared/numberFormat";
 function finiteOrNull(raw: unknown): number | null {
     if (raw == null) return null;
     if (typeof raw === "number") return isFinite(raw) ? raw : null;
-    if (typeof raw === "string" && raw.trim() === "") return null;
+    if (typeof raw !== "string" || raw.trim() === "") return null;
     const n = Number(raw);
     return isFinite(n) ? n : null;
 }
