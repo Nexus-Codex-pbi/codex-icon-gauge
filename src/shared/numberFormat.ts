@@ -77,7 +77,12 @@ export function formatModelNumber(n: number, format: string | null | undefined, 
     const cm = format.match(/^([^#0]*)([#0][,#0]*(?:\.[0#]+)?)/);
     if (cm && cm[1] && /[$£€¥]/.test(cm[1])) {
         const sym = cm[1].trim();
-        return `${sym}${n.toLocaleString(locale, { minimumFractionDigits: min, maximumFractionDigits: max })}`;
+        // Sign OUTSIDE the symbol: "-$10.00", never "$-10.00" (NEXUS cycle-14 §6
+        // caught the helper emitting the latter). A value that rounds to zero at
+        // `max` digits carries no sign.
+        const body = Math.abs(n).toLocaleString(locale, { minimumFractionDigits: min, maximumFractionDigits: max });
+        const sign = n < 0 && /[1-9]/.test(body) ? "-" : "";
+        return `${sign}${sym}${body}`;
     }
 
     // Decimal formats: "0.0", "0.00", "#,##0", "#,##0.00", "0.##"…
