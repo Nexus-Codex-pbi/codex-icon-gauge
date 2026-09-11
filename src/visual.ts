@@ -76,6 +76,7 @@ export class Visual implements IVisual {
     private gaugeElement: SVGSVGElement | null = null;
     private gaugeRow: RowData | null = null;
     private gaugeListeners: AbortController | null = null;
+    private destroyed = false;
     private readonly contextMenuHandler = (e: MouseEvent): void => {
         const identity = this.gaugeElement?.contains(e.target as Node) ? this.gaugeRow?.selectionId : null;
         this.selectionManager.showContextMenu(identity || {}, { x: e.clientX, y: e.clientY });
@@ -139,6 +140,7 @@ export class Visual implements IVisual {
     }
 
     public update(options: VisualUpdateOptions): void {
+        if (this.destroyed) return;
         this.events.renderingStarted(options);
         this.lastUpdateOptions = options;
 
@@ -490,7 +492,18 @@ export class Visual implements IVisual {
         // Drop the in-flight licence check FIRST: its redraw callback replays
         // update() against a torn-down target otherwise (NEXUS lifecycle finding).
         this.licenseGate.dispose();
-        while (this.rootDiv && this.rootDiv.firstChild) this.rootDiv.removeChild(this.rootDiv.firstChild);
+        if (this.destroyed) return;
+        this.destroyed = true;
+        this.lastUpdateOptions = null;
+        this.gaugeListeners?.abort();
+        this.gaugeListeners = null;
+        this.gaugeElement = null;
+        this.gaugeRow = null;
+        this.target.removeEventListener("contextmenu", this.contextMenuHandler);
+        this.cornerSignature?.destroy();
+        this.cornerSignature = null;
+        this.rootDiv.replaceChildren();
+        this.rootDiv.remove();
         this.rootDiv = null;
         this.target = null;
     }
