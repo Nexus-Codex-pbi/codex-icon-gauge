@@ -146,12 +146,13 @@ function fitGroup(ctx: IconGaugeCtx, designW: number, designH: number): Selectio
 
 
 function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: number, ySub: number, boardValPx: number): void {
-    if (!ctx.showValue) return;
-    const vt = g.append("text").attr("x", x).attr("y", yVal).attr("text-anchor", "middle")
-        .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || t.val))
-        .style("font-feature-settings", '"tnum"')
-        .text(ctx.valText);
-    applyFont(vt, ctx.valueFont, boardValPx, "700");
+    if (ctx.showValue) {
+        const vt = g.append("text").attr("x", x).attr("y", yVal).attr("text-anchor", "middle")
+            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || t.val))
+            .style("font-feature-settings", '"tnum"')
+            .text(ctx.valText);
+        applyFont(vt, ctx.valueFont, boardValPx, "700");
+    }
     if (ctx.showSub && ctx.subText) {
         const ut = g.append("text").attr("x", x).attr("y", ySub).attr("text-anchor", "middle")
             .attr("fill", ctx.hc ? ctx.hcFg : (ctx.unitColor || ctx.statusInk || t.unit))
@@ -251,20 +252,7 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
         fill.append("path").attr("d", STAR).attr("transform", `translate(${i * 38},0)`).attr("fill", clr);
     }
     // Board texts at y116/134 with rating readout
-    if (ctx.showValue) {
-        const vt = g.append("text").attr("x", 100).attr("y", 116).attr("text-anchor", "middle")
-            .attr("fill", hc ? fg : (ctx.valueColor || t.val))
-            .style("font-feature-settings", '"tnum"')
-            .text(`${rating.toFixed(1)} / 5.0`);
-        applyFont(vt, ctx.valueFont, 26, "700");
-        if (ctx.showSub && ctx.subText) {
-            const ut = g.append("text").attr("x", 100).attr("y", 134).attr("text-anchor", "middle")
-                .attr("fill", hc ? fg : (ctx.unitColor || ctx.statusInk || t.unit))
-                .style("letter-spacing", "0.06em")
-                .text(ctx.subText);
-            applyFont(ut, ctx.unitFont, 12, "600");
-        }
-    }
+    valueLine(g, { ...ctx, valText: `${rating.toFixed(1)} / 5.0` }, t, 100, 116, 134, 26);
 }
 
 /* ─── Mode 3: Traffic Light (board viewBox 200×218) ───────────────────────── */
