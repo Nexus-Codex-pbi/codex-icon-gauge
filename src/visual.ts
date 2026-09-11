@@ -54,6 +54,7 @@ interface RowData {
 
 interface Reading {
     value: number;
+    pct: number;
     target: number | null;
     targetFormat: string | null;
     row: RowData;
@@ -359,8 +360,12 @@ export class Visual implements IVisual {
         const targetCol = valuesArr.find(v => v.source.roles && v.source.roles["target"]);
         const rawT = targetCol?.values?.[0];
         const target = finiteOrNull(rawT);
+        const value = rows[0].value;
+        const pct = target != null && target !== 0 ? (value / target) * 100 : value;
+        if (!Number.isFinite(pct)) return null;
         return {
-            value: rows[0].value,
+            value,
+            pct,
             target,
             targetFormat: targetCol?.source.format ?? null,
             row: rows[0],
@@ -375,9 +380,7 @@ export class Visual implements IVisual {
         const ls = this.formattingSettings.labelStyle;
         const hc = this.isHighContrast;
 
-        const pct = (reading.target != null && reading.target !== 0)
-            ? (reading.value / reading.target) * 100
-            : reading.value;
+        const pct = reading.pct;
         const band = bandFor(reading.value, reading.target);
         const style = String(ig.morphStyle.value?.value || "faces");
 
