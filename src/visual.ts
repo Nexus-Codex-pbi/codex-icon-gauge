@@ -282,8 +282,8 @@ export class Visual implements IVisual {
 
     private parseRows(dv: DataView): RowData[] {
         const cat = dv.categorical;
-        if (!cat || !cat.categories || cat.categories.length === 0) return [];
-        const labels = cat.categories[0];
+        if (!cat) return [];
+        const labels = cat.categories?.[0];
         const valuesArr = cat.values || [];
         const findCol = (role: string) => valuesArr.find(v => v.source.roles && v.source.roles[role]);
         const valueCol = findCol("value");
@@ -292,19 +292,19 @@ export class Visual implements IVisual {
         if (!valueCol) return [];
 
         const rows: RowData[] = [];
-        const n = labels.values?.length ?? 0;
+        const n = labels ? labels.values?.length ?? 0 : Math.min(1, valueCol.values?.length ?? 0);
         for (let i = 0; i < n; i++) {
-            const category = String(labels.values[i] ?? "");
+            const category = String(labels?.values[i] ?? "");
             const raw = valueCol.values?.[i];
             const value = finiteOrNull(raw);
 
-            const selectionId = this.host.createSelectionIdBuilder()
+            const selectionId = labels ? this.host.createSelectionIdBuilder()
                 .withCategory(labels, i)
-                .createSelectionId();
+                .createSelectionId() : null;
 
-            const tooltipItems: VisualTooltipDataItem[] = [
+            const tooltipItems: VisualTooltipDataItem[] = labels ? [
                 { displayName: "Category", value: category },
-            ];
+            ] : [];
             if (value != null) {
                 tooltipItems.push({
                     displayName: valueCol.source.displayName,
