@@ -73,6 +73,14 @@ export class Visual implements IVisual {
     private hcForeground = "";
     private hcBackground = "";
     private cornerSignature: CardSignatureHandle | null = null;
+    private gaugeElement: SVGSVGElement | null = null;
+    private gaugeRow: RowData | null = null;
+    private gaugeListeners: AbortController | null = null;
+    private readonly contextMenuHandler = (e: MouseEvent): void => {
+        const identity = this.gaugeElement?.contains(e.target as Node) ? this.gaugeRow?.selectionId : null;
+        this.selectionManager.showContextMenu(identity || {}, { x: e.clientX, y: e.clientY });
+        e.preventDefault();
+    };
 
     private licenseGate: LicenseGate;
 
@@ -105,10 +113,7 @@ export class Visual implements IVisual {
         // Policy 1180.2.5: matches MS sample BarChart pattern.
         // No overlay, no per-element duplicates (those double-fire and
         // break showContextMenu rendering).
-        this.target.addEventListener("contextmenu", (e: MouseEvent) => {
-            this.selectionManager.showContextMenu({}, { x: e.clientX, y: e.clientY });
-            e.preventDefault();
-        });
+        this.target.addEventListener("contextmenu", this.contextMenuHandler);
 
         // Root carries the suite chrome (fill-tile background, Border card,
         // corner accents): border stays inside the tile and anchors the
@@ -157,6 +162,10 @@ export class Visual implements IVisual {
                 .populateFormattingSettingsModel(VisualFormattingSettingsModel, dv);
 
             // Clear root.
+            this.gaugeListeners?.abort();
+            this.gaugeListeners = null;
+            this.gaugeElement = null;
+            this.gaugeRow = null;
             while (this.rootDiv.firstChild) this.rootDiv.removeChild(this.rootDiv.firstChild);
 
             // ── Theme + suite chrome (Background paints the ROOT so one
@@ -382,6 +391,11 @@ export class Visual implements IVisual {
         const svg = document.createElementNS(svgNS, "svg");
         svg.setAttribute("width", "100%");
         svg.setAttribute("height", String(Math.max(10, height - titleHeight)));
+        svg.setAttribute("class", "codex-gauge");
+        svg.setAttribute("role", reading.row.selectionId ? "button" : "img");
+        svg.setAttribute("aria-label", [reading.row.category, `${Math.round(pct)}%`, subText].filter(Boolean).join(", "));
+        if (reading.row.selectionId) svg.setAttribute("tabindex", "0");
+        svg.style.color = hc ? this.hcForeground : iconTokens(theme).val;
         svg.style.display = "block";
         const defs = document.createElementNS(svgNS, "defs") as SVGDefsElement;
         const group = document.createElementNS(svgNS, "g") as SVGGElement;
@@ -429,6 +443,10 @@ export class Visual implements IVisual {
 
         // Interactions: tooltip + click-to-filter on the whole gauge
         const row = reading.row;
+        this.gaugeElement = svg;
+        this.gaugeRow = row;
+        this.gaugeListeners = new AbortController();
+        const listenerOptions = { signal: this.gaugeListeners.signal };
         svg.addEventListener("mousemove", (e: MouseEvent) => {
             this.tooltipService.show({
                 coordinates: [e.clientX, e.clientY],
@@ -436,14 +454,21 @@ export class Visual implements IVisual {
                 dataItems: row.tooltipItems,
                 identities: row.selectionId ? [row.selectionId] : [],
             });
-        });
+        }, listenerOptions);
         svg.addEventListener("mouseleave", () => {
             this.tooltipService.hide({ isTouchEvent: false, immediately: false });
-        });
+        }, listenerOptions);
         svg.addEventListener("click", (e: MouseEvent) => {
             if (row.selectionId) this.selectionManager.select(row.selectionId, e.ctrlKey || e.metaKey);
             e.stopPropagation();
-        });
+        }, listenerOptions);
+        svg.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (row.selectionId && (e.key === "Enter" || e.key === " ")) {
+                this.selectionManager.select(row.selectionId, e.ctrlKey || e.metaKey);
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, listenerOptions);
     }
 
     // ─── Number formatting (PBI format-string aware) ──────────
