@@ -24,7 +24,7 @@ import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
 import { applyCardSignature } from "./shared/cardSignatureSettings";
-import { resolveCodexTheme, neonColorFor, ResolvedCodexTheme, flareHexFor } from "./shared/codexThemeSettings";
+import { resolveCodexTheme, neonColorFor, ResolvedCodexTheme, flareHexFor, forcedInk } from "./shared/codexThemeSettings";
 import { applyBorder } from "./shared/borderSettings";
 import {
     IconGaugeCtx, bandFor, iconTokens, renderFillVessel, renderIconRow,
@@ -213,11 +213,12 @@ export class Visual implements IVisual {
                 behindHex,
             });
             const theme: Theme = codex.theme;
-            // A forced mode OWNS the text inks: a pane ink chosen for a white
-            // tile is not a choice about the Codex dark surface. The helpers do
-            // not change — contrastInk/mutedInk simply judge against the Codex
-            // surface instead of the user's. Band, accent and fx colours stay
-            // the user's.
+            // A forced mode judges the text inks against ITS surface: a pane ink
+            // chosen for a white tile is not a choice about the Codex dark
+            // surface. The helpers do not change — contrastInk/mutedInk simply
+            // judge against the Codex surface instead of the user's. An ink the
+            // author set explicitly is then GUARDED rather than discarded
+            // (forcedInk, contract rule 3). Band and accent colours stay theirs.
             const inkOverride = codex.mode !== "auto";
             if (inkOverride) visibleSurface = codex.surfaceHex;
             const tokenInk = inkOverride
@@ -236,7 +237,7 @@ export class Visual implements IVisual {
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
-            this.renderTitle(headlineInk, inkOverride);
+            this.renderTitle(headlineInk, codex);
             this.target.style.background = this.isHighContrast
                 ? this.hcBackground : toRgba(codex.bgHex, codex.transparencyPct);
             applyBorder(this.target, this.formattingSettings.visualBorder, {
@@ -275,7 +276,7 @@ export class Visual implements IVisual {
                 return;
             }
 
-            this.renderGauge(reading, mode, theme, headlineInk, statusInk, codex, inkOverride,
+            this.renderGauge(reading, mode, theme, headlineInk, statusInk, codex,
                 options.viewport.width, options.viewport.height);
             this.events.renderingFinished(options);
         } catch (e) {
@@ -285,7 +286,7 @@ export class Visual implements IVisual {
 
     // ─── Title ─────────────────────────────────────────────────
 
-    private renderTitle(headlineInk: string, inkOverride: boolean): void {
+    private renderTitle(headlineInk: string, codex: ResolvedCodexTheme): void {
         const t = this.formattingSettings.titleSettings;
         if (!t?.showTitle?.value || !t?.titleText?.value) return;
         const el = document.createElement("div");
@@ -297,10 +298,12 @@ export class Visual implements IVisual {
         el.style.fontStyle = t.titleItalic?.value ? "italic" : "normal";
         el.style.textDecoration = t.titleUnderline?.value ? "underline" : "none";
         el.style.textAlign = textAlignFor(t.titleAlign?.value as string);
-        // Default title ink follows the measured surface; custom ink is retained
-        // EXCEPT under a forced Codex mode, which owns the ink for its surface.
+        // Default title ink follows the measured surface; a custom ink is kept
+        // under a forced Codex mode too, as long as it still reads on that
+        // mode's surface (forcedInk, contract rule 3).
         const set = t.titleColor?.value?.value;
-        const c = inkOverride || !set || set === "#1a1a2e" ? headlineInk : set;
+        const isDefault = !set || set === "#1a1a2e";
+        const c = forcedInk(set || headlineInk, headlineInk, codex, isDefault);
         if (c) el.style.color = this.isHighContrast ? this.hcForeground : c;
         this.rootDiv.appendChild(el);
     }
@@ -405,7 +408,7 @@ export class Visual implements IVisual {
     // ─── Render ────────────────────────────────────────────────
 
     private renderGauge(reading: Reading, mode: string, theme: Theme, headlineInk: string, statusInk: string,
-        codex: ResolvedCodexTheme, inkOverride: boolean, width: number, height: number): void {
+        codex: ResolvedCodexTheme, width: number, height: number): void {
         const ig = this.formattingSettings.iconGauge;
         const vs = this.formattingSettings.valueStyle;
         const ls = this.formattingSettings.labelStyle;
@@ -460,11 +463,12 @@ export class Visual implements IVisual {
             subText,
             showValue: textFits && !!ig.showValue.value,
             showSub: textFits && !!ig.showSub.value,
-            // A forced Codex mode owns these two inks: null routes the headline
-            // through headlineInk and the status line through statusInk, both
-            // measured against the Codex surface (contrastInk / mutedInk).
-            valueColor: inkOverride ? null : (vs.color.value.value || null),
-            unitColor: inkOverride ? null : (ls.color.value.value || null),
+            // Contract rule 3: an unset picker takes the mode default (headlineInk
+            // for the reading, statusInk for the status line, both measured
+            // against the Codex surface); an explicit ink survives a forced mode
+            // while it still reads ≥ 4.5:1 on that surface.
+            valueColor: forcedInk(vs.color.value.value || headlineInk, headlineInk, codex, !vs.color.value.value),
+            unitColor: forcedInk(ls.color.value.value || statusInk, statusInk, codex, !ls.color.value.value),
             valueAlign: String(vs.align.value),
             unitAlign: String(ls.align.value),
             statusInk,

@@ -57,13 +57,21 @@ export interface IconGaugeCtx {
     codex: ResolvedCodexTheme;
 }
 
-/** The SVG `filter` value for a mark that should flare under Neon: the flare
- *  colour when the card is scoped to "flare", otherwise the mark's own hue,
+/** The SVG `filter` value for an ACCENT that should flare under Neon: the flare
+ *  colour when the card is scoped to "flare", otherwise the accent's own hue,
  *  at the card's glow budget. `null` outside Neon (and so under HC), which
  *  leaves the attribute unset and the render byte-identical to Auto. */
-function neonFilterFor(ctx: IconGaugeCtx, markHex: string): string | null {
+function neonFilterFor(ctx: IconGaugeCtx, accentHex: string): string | null {
     if (!ctx.codex?.neon || ctx.hc || ctx.codex.glow <= 0) return null;
-    return neonFilter(neonColorFor(markHex, ctx.codex), ctx.codex.glow);
+    return neonFilter(neonColorFor(accentHex, ctx.codex), ctx.codex.glow);
+}
+
+/** Forced-mode contract rule 1 (#819): a band verdict colour is DATA — danger
+ *  red means danger. The flare never retints it; it glows in its own hue, at
+ *  the same budget. Same `null` outside Neon and under HC. */
+function neonBandFilterFor(ctx: IconGaugeCtx, bandHex: string): string | null {
+    if (!ctx.codex?.neon || ctx.hc || ctx.codex.glow <= 0) return null;
+    return neonFilter(bandHex, ctx.codex.glow);
 }
 
 /* ─── Board token maps (.dk / .lt) ────────────────────────────────────────── */
@@ -271,7 +279,7 @@ export function renderFillVessel(ctx: IconGaugeCtx): void {
             .attr("height", fillH).attr("rx", 2).attr("fill", clr);
     }
 
-    icon.attr("filter", neonFilterFor(ctx, clr));
+    icon.attr("filter", neonBandFilterFor(ctx, clr));
 
     g.append("path").attr("d", vesselD).attr("transform", vesselT)
         .attr("fill", "none").attr("stroke", hc ? fg : t.vedge)
@@ -321,7 +329,7 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
     for (let i = 0; i < 5; i++) {
         fill.append("path").attr("d", STAR).attr("transform", `translate(${i * 38},0)`).attr("fill", clr);
     }
-    icon.attr("filter", neonFilterFor(ctx, clr));
+    icon.attr("filter", neonBandFilterFor(ctx, clr));
     // Board texts at y116/134 with rating readout
     valueLine(g, { ...ctx, valText: `${rating.toFixed(1)} / 5.0` }, t, 100, 116, 134, 26);
 }
@@ -358,9 +366,10 @@ export function renderTrafficLight(ctx: IconGaugeCtx): void {
             .attr("stroke", hc ? fg : "none").attr("stroke-width", hc ? 1.5 : 0);
         const lit = b === band;
         // The lit lamp is this mode's existing glow site: under Neon its halo
-        // switches to the card's budget (and the flare colour when scoped),
-        // replacing the board's fixed igGlow* filter. Unlit lamps never glow.
-        const neonLamp = lit ? neonFilterFor(ctx, hue) : null;
+        // switches to the card's budget, replacing the board's fixed igGlow*
+        // filter. The lamp hue is the verdict, so the flare never tints it
+        // (rule 1) — a danger lamp glows red. Unlit lamps never glow.
+        const neonLamp = lit ? neonBandFilterFor(ctx, hue) : null;
         g.append("circle").attr("cx", 100).attr("cy", cy).attr("r", 18)
             .attr("fill", hc ? (lit ? fg : bg) : (lit ? grad : dim))
             .attr("filter", neonLamp || ((lit && !hc && t.glow) ? glow : null));
@@ -412,7 +421,7 @@ export function renderStateMorph(ctx: IconGaugeCtx): void {
             .attr("fill", "none").attr("stroke", hc ? bg : t.facefeat)
             .attr("stroke-width", 6).attr("stroke-linecap", "round");
     }
-    icon.attr("filter", neonFilterFor(ctx, clr));
+    icon.attr("filter", neonBandFilterFor(ctx, clr));
     valueLine(g, ctx, t, 100, 180, 200, 24);
 }
 
