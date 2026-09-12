@@ -10,6 +10,7 @@ import FormattingSettingsModel = formattingSettings.Model;
 const ConstantOrRule = powerbi.VisualEnumerationInstanceKinds.ConstantOrRule;
 
 import { BackgroundSettings } from "./shared/backgroundSettings";
+import { CodexThemeSettings } from "./shared/codexThemeSettings";
 import { BorderSettings } from "./shared/borderSettings";
 import { CardSignatureSettings } from "./shared/cardSignatureSettings";
 
@@ -201,8 +202,9 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     valueStyle = new ValueStyleCard();
     labelStyle = new LabelStyleCard();
     background = new BackgroundSettings();
+    codexTheme = new CodexThemeSettings();
     cardSignature = new CardSignatureSettings();
     visualBorder = new BorderSettings();
 
-    cards = [this.iconGauge, this.titleSettings, this.valueStyle, this.labelStyle, this.background, this.cardSignature, this.visualBorder];
+    cards = [this.iconGauge, this.titleSettings, this.valueStyle, this.labelStyle, this.background, this.codexTheme, this.cardSignature, this.visualBorder];
 }

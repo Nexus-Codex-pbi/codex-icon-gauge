@@ -10,6 +10,7 @@
 
 import { select, Selection } from "d3-selection";
 import { Theme } from "./shared/bandEngine";
+import { ResolvedCodexTheme, neonColorFor, neonFilter } from "./shared/codexThemeSettings";
 
 export type Band = "succ" | "warn" | "dang";
 
@@ -50,6 +51,19 @@ export interface IconGaugeCtx {
     vessel: string;         // fill-vessel shape key
     showGlyph: boolean;     // traffic light colour-blind glyph
     morphStyle: string;     // faces | thumbs | tickCross
+    /** The ONE resolved Nexus Codex Theme (#819) for this render. Neon is the
+     *  only mode the renderers read: it glows the primary mark and the
+     *  headline. Never set under high contrast (the resolver collapses to Auto). */
+    codex: ResolvedCodexTheme;
+}
+
+/** The SVG `filter` value for a mark that should flare under Neon: the flare
+ *  colour when the card is scoped to "flare", otherwise the mark's own hue,
+ *  at the card's glow budget. `null` outside Neon (and so under HC), which
+ *  leaves the attribute unset and the render byte-identical to Auto. */
+function neonFilterFor(ctx: IconGaugeCtx, markHex: string): string | null {
+    if (!ctx.codex?.neon || ctx.hc || ctx.codex.glow <= 0) return null;
+    return neonFilter(neonColorFor(markHex, ctx.codex), ctx.codex.glow);
 }
 
 /* ─── Board token maps (.dk / .lt) ────────────────────────────────────────── */
@@ -184,12 +198,16 @@ function valueLine(g: any, ctx: IconGaugeCtx, t: IconTokens, x: number, yVal: nu
         bottom = box.y + box.height;
     };
     if (ctx.showValue) {
+        const headline = ctx.hc ? ctx.hcFg : (ctx.valueColor || ctx.headlineInk);
         const vt = g.append("text").attr("x", position(ctx.valueAlign)).attr("y", yVal).attr("text-anchor", anchor(ctx.valueAlign))
-            .attr("fill", ctx.hc ? ctx.hcFg : (ctx.valueColor || ctx.headlineInk))
+            .attr("fill", headline)
             .style("font-feature-settings", '"tnum"')
             .text(ctx.valText);
         applyFont(vt, ctx.valueFont, boardValPx);
         fitLine(vt);
+        // Neon flares the HEADLINE only — the status line below is 12px body
+        // text and never glows (contract: no glow under the headline size).
+        vt.attr("filter", neonFilterFor(ctx, headline));
     }
     if (ctx.showSub && ctx.subText) {
         const ut = g.append("text").attr("x", position(ctx.unitAlign)).attr("y", ySub).attr("text-anchor", anchor(ctx.unitAlign))
@@ -221,9 +239,16 @@ export function renderFillVessel(ctx: IconGaugeCtx): void {
     defs.append("clipPath").attr("id", clipId)
         .append("path").attr("d", vesselD).attr("transform", vesselT);
 
-    const clipped = g.append("g").attr("clip-path", `url(#${clipId})`);
-    clipped.append("rect").attr("x", 30).attr("y", 26).attr("width", 140).attr("height", 130)
+    const track = g.append("g").attr("clip-path", `url(#${clipId})`);
+    track.append("rect").attr("x", 30).attr("y", 26).attr("width", 140).attr("height", 130)
         .attr("fill", hc ? "none" : t.vtrack);
+
+    // Neon flares the FILL, not the empty vessel: the glow then traces exactly
+    // what the reading filled. The filter sits on a wrapper ABOVE the clip —
+    // SVG filters render before clipping, so a filter on the clipped group
+    // itself would have its halo cut off at the silhouette.
+    const icon = g.append("g");
+    const clipped = icon.append("g").attr("clip-path", `url(#${clipId})`);
 
     const liquid = vessel === "heart" || vessel === "droplet";
     if (vessel === "battery") {
@@ -245,6 +270,8 @@ export function renderFillVessel(ctx: IconGaugeCtx): void {
         clipped.append("rect").attr("x", 30).attr("y", fillTop).attr("width", 140)
             .attr("height", fillH).attr("rx", 2).attr("fill", clr);
     }
+
+    icon.attr("filter", neonFilterFor(ctx, clr));
 
     g.append("path").attr("d", vesselD).attr("transform", vesselT)
         .attr("fill", "none").attr("stroke", hc ? fg : t.vedge)
@@ -285,11 +312,16 @@ export function renderIconRow(ctx: IconGaugeCtx): void {
     // Clip on an UNTRANSLATED wrapper: a group's own transform moves its clip-path
     // with it, which shoved the board's y38 clip window below the y1-33 stars and
     // clipped the whole fill layer away (the all-track-colour bug).
-    const fill = g.append("g").attr("clip-path", `url(#${clipId})`)
+    // Neon flare on the LIT stars only (wrapper above the clip — a filter on
+    // the clipped group would have its halo cut off at the fill boundary), so
+    // an empty track star never borrows the glow of a filled one.
+    const icon = g.append("g");
+    const fill = icon.append("g").attr("clip-path", `url(#${clipId})`)
         .append("g").attr("transform", "translate(10,40)");
     for (let i = 0; i < 5; i++) {
         fill.append("path").attr("d", STAR).attr("transform", `translate(${i * 38},0)`).attr("fill", clr);
     }
+    icon.attr("filter", neonFilterFor(ctx, clr));
     // Board texts at y116/134 with rating readout
     valueLine(g, { ...ctx, valText: `${rating.toFixed(1)} / 5.0` }, t, 100, 116, 134, 26);
 }
@@ -316,18 +348,22 @@ export function renderTrafficLight(ctx: IconGaugeCtx): void {
     // Unlit lamps read as deeply-dimmed lenses of their own colour (live-QA
     // 2026-07-18: the board's flat #181830 lampdim vanished into the housing —
     // "blank circles"). Deviation from the board, Neil's call.
-    const lamps: [number, Band, string, string, string][] = [
-        [48, "dang", "url(#igTlRed)", "url(#igGlowRed)", "#58202b"],
-        [90, "warn", "url(#igTlAmber)", "url(#igGlowAmber)", "#5a4416"],
-        [132, "succ", "url(#igTlGreen)", "url(#igGlowGreen)", "#23511f"],
+    const lamps: [number, Band, string, string, string, string][] = [
+        [48, "dang", "url(#igTlRed)", "url(#igGlowRed)", "#58202b", "#ff3b52"],
+        [90, "warn", "url(#igTlAmber)", "url(#igGlowAmber)", "#5a4416", "#ffb020"],
+        [132, "succ", "url(#igTlGreen)", "url(#igGlowGreen)", "#23511f", "#8aff2b"],
     ];
-    for (const [cy, b, grad, glow, dim] of lamps) {
+    for (const [cy, b, grad, glow, dim, hue] of lamps) {
         g.append("circle").attr("cx", 100).attr("cy", cy).attr("r", 21).attr("fill", hc ? bg : t.socket)
             .attr("stroke", hc ? fg : "none").attr("stroke-width", hc ? 1.5 : 0);
         const lit = b === band;
+        // The lit lamp is this mode's existing glow site: under Neon its halo
+        // switches to the card's budget (and the flare colour when scoped),
+        // replacing the board's fixed igGlow* filter. Unlit lamps never glow.
+        const neonLamp = lit ? neonFilterFor(ctx, hue) : null;
         g.append("circle").attr("cx", 100).attr("cy", cy).attr("r", 18)
             .attr("fill", hc ? (lit ? fg : bg) : (lit ? grad : dim))
-            .attr("filter", (lit && !hc && t.glow) ? glow : null);
+            .attr("filter", neonLamp || ((lit && !hc && t.glow) ? glow : null));
     }
     if (ctx.showGlyph) {
         const litCy = band === "dang" ? 48 : band === "warn" ? 90 : 132;
@@ -352,27 +388,31 @@ export function renderStateMorph(ctx: IconGaugeCtx): void {
     const clr = hc ? fg : stateColor(t, band);
     const style = ctx.morphStyle;
 
+    // The morph glyph IS the data mark — one group so Neon flares the whole
+    // silhouette and nothing else on the board.
+    const icon = g.append("g");
     if (style === "thumbs") {
-        g.append("path").attr("d", VESSELS.thumb)
+        icon.append("path").attr("d", VESSELS.thumb)
             .attr("transform", band === "succ" ? "translate(47,20)" : "translate(47,20) rotate(180 53 66)")
             .attr("fill", clr);
     } else if (style === "tickCross") {
-        g.append("circle").attr("cx", 100).attr("cy", 86).attr("r", 54).attr("fill", clr);
-        g.append("path")
+        icon.append("circle").attr("cx", 100).attr("cy", 86).attr("r", 54).attr("fill", clr);
+        icon.append("path")
             .attr("d", band === "succ" ? "M78 88 L94 104 L124 70" : "M82 68 L118 104 M118 68 L82 104")
             .attr("fill", "none").attr("stroke", hc ? bg : t.facefeat)
             .attr("stroke-width", 6).attr("stroke-linecap", "round").attr("stroke-linejoin", "round");
     } else {
         // Faces (default)
-        g.append("circle").attr("cx", 100).attr("cy", 86).attr("r", 54).attr("fill", clr);
-        g.append("circle").attr("cx", 82).attr("cy", 72).attr("r", 6).attr("fill", hc ? bg : t.facefeat);
-        g.append("circle").attr("cx", 118).attr("cy", 72).attr("r", 6).attr("fill", hc ? bg : t.facefeat);
+        icon.append("circle").attr("cx", 100).attr("cy", 86).attr("r", 54).attr("fill", clr);
+        icon.append("circle").attr("cx", 82).attr("cy", 72).attr("r", 6).attr("fill", hc ? bg : t.facefeat);
+        icon.append("circle").attr("cx", 118).attr("cy", 72).attr("r", 6).attr("fill", hc ? bg : t.facefeat);
         const mouth = band === "succ" ? "M78 100 Q100 122 122 100"
             : band === "warn" ? "M80 106 L120 106" : "M78 112 Q100 92 122 112";
-        g.append("path").attr("d", mouth)
+        icon.append("path").attr("d", mouth)
             .attr("fill", "none").attr("stroke", hc ? bg : t.facefeat)
             .attr("stroke-width", 6).attr("stroke-linecap", "round");
     }
+    icon.attr("filter", neonFilterFor(ctx, clr));
     valueLine(g, ctx, t, 100, 180, 200, 24);
 }
 

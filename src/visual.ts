@@ -24,6 +24,7 @@ import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
 import { applyCardSignature } from "./shared/cardSignatureSettings";
+import { resolveCodexTheme, neonColorFor, ResolvedCodexTheme } from "./shared/codexThemeSettings";
 import { applyBorder } from "./shared/borderSettings";
 import {
     IconGaugeCtx, bandFor, iconTokens, renderFillVessel, renderIconRow,
@@ -184,7 +185,7 @@ export class Visual implements IVisual {
             // What sits behind is the host theme's background; this visual paints
             // nothing else beneath its own tile.
             const behindHex = colorPalette.background?.value || "#ffffff";
-            const visibleSurface = this.isHighContrast
+            let visibleSurface = this.isHighContrast
                 ? this.hcBackground
                 : compositeOver(bgHex, bgTransparencyPct, behindHex);
             // The ink is then MEASURED against that surface rather than bucketed
@@ -196,8 +197,32 @@ export class Visual implements IVisual {
             // follows its own ink so chrome and text stay one palette.
             const lightSurfaceInk = iconTokens("light").val;   // #14141f
             const darkSurfaceInk = iconTokens("dark").val;     // #e8e6ff
-            const tokenInk = contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk);
-            const theme: Theme = tokenInk === lightSurfaceInk ? "light" : "dark";
+            const autoInk = contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk);
+            const autoTheme: Theme = autoInk === lightSurfaceInk ? "light" : "dark";
+            // ── Nexus Codex Theme (#819): ONE switch above the automatic pick ──
+            // Auto returns exactly the values derived above (the shipped render).
+            // Dark/Light/Neon paint the Codex card surface at the card's own
+            // Surface Transparency and force the token set; the resolver has
+            // already collapsed to Auto under high contrast, so there is no HC
+            // branch here. Resolved ONCE and routed through the renderers.
+            const codex = resolveCodexTheme(this.formattingSettings.codexTheme, {
+                hcActive: this.isHighContrast,
+                autoTheme,
+                autoBgHex: bgHex,
+                autoTransparencyPct: bgTransparencyPct,
+                behindHex,
+            });
+            const theme: Theme = codex.theme;
+            // A forced mode OWNS the text inks: a pane ink chosen for a white
+            // tile is not a choice about the Codex dark surface. The helpers do
+            // not change — contrastInk/mutedInk simply judge against the Codex
+            // surface instead of the user's. Band, accent and fx colours stay
+            // the user's.
+            const inkOverride = codex.mode !== "auto";
+            if (inkOverride) visibleSurface = codex.surfaceHex;
+            const tokenInk = inkOverride
+                ? contrastInk(visibleSurface, lightSurfaceInk, darkSurfaceInk)
+                : autoInk;
             // Both brand inks can miss small-text contrast on mid-grey.
             const headlineInk = contrastRatio(tokenInk, visibleSurface) >= 4.5
                 ? tokenInk : contrastInk(visibleSurface, "#000000", "#ffffff");
@@ -211,9 +236,9 @@ export class Visual implements IVisual {
 
             // Title — render first so it's at the top of the iframe and captures
             // right-clicks where PBI's auto-title chrome would otherwise sit.
-            this.renderTitle(headlineInk);
+            this.renderTitle(headlineInk, inkOverride);
             this.target.style.background = this.isHighContrast
-                ? this.hcBackground : toRgba(bgHex, bgTransparencyPct);
+                ? this.hcBackground : toRgba(codex.bgHex, codex.transparencyPct);
             applyBorder(this.target, this.formattingSettings.visualBorder, {
                 hcActive: this.isHighContrast,
                 hcColor: this.hcForeground,
@@ -221,11 +246,12 @@ export class Visual implements IVisual {
                 metadataObjects: undefined,
             });
             applyCardSignature(this.cornerSignature, this.formattingSettings.cardSignature, {
-                autoHex: accentToken(theme),
+                autoHex: neonColorFor(accentToken(theme), codex),
                 hcActive: this.isHighContrast,
                 hcColor: this.hcForeground,
                 mirror: true,
-                glowMix: this.isHighContrast ? 0 : (theme === "dark" ? 55 : 0),
+                glowMix: this.isHighContrast ? 0
+                    : codex.neon ? codex.glow : (theme === "dark" ? 55 : 0),
                 muted: false,
             });
 
@@ -248,7 +274,8 @@ export class Visual implements IVisual {
                 return;
             }
 
-            this.renderGauge(reading, mode, theme, headlineInk, statusInk, options.viewport.width, options.viewport.height);
+            this.renderGauge(reading, mode, theme, headlineInk, statusInk, codex, inkOverride,
+                options.viewport.width, options.viewport.height);
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, String(e));
@@ -257,7 +284,7 @@ export class Visual implements IVisual {
 
     // ─── Title ─────────────────────────────────────────────────
 
-    private renderTitle(headlineInk: string): void {
+    private renderTitle(headlineInk: string, inkOverride: boolean): void {
         const t = this.formattingSettings.titleSettings;
         if (!t?.showTitle?.value || !t?.titleText?.value) return;
         const el = document.createElement("div");
@@ -269,9 +296,10 @@ export class Visual implements IVisual {
         el.style.fontStyle = t.titleItalic?.value ? "italic" : "normal";
         el.style.textDecoration = t.titleUnderline?.value ? "underline" : "none";
         el.style.textAlign = textAlignFor(t.titleAlign?.value as string);
-        // Default title ink follows the measured surface; custom ink is retained.
+        // Default title ink follows the measured surface; custom ink is retained
+        // EXCEPT under a forced Codex mode, which owns the ink for its surface.
         const set = t.titleColor?.value?.value;
-        const c = !set || set === "#1a1a2e" ? headlineInk : set;
+        const c = inkOverride || !set || set === "#1a1a2e" ? headlineInk : set;
         if (c) el.style.color = this.isHighContrast ? this.hcForeground : c;
         this.rootDiv.appendChild(el);
     }
@@ -375,7 +403,8 @@ export class Visual implements IVisual {
 
     // ─── Render ────────────────────────────────────────────────
 
-    private renderGauge(reading: Reading, mode: string, theme: Theme, headlineInk: string, statusInk: string, width: number, height: number): void {
+    private renderGauge(reading: Reading, mode: string, theme: Theme, headlineInk: string, statusInk: string,
+        codex: ResolvedCodexTheme, inkOverride: boolean, width: number, height: number): void {
         const ig = this.formattingSettings.iconGauge;
         const vs = this.formattingSettings.valueStyle;
         const ls = this.formattingSettings.labelStyle;
@@ -430,8 +459,11 @@ export class Visual implements IVisual {
             subText,
             showValue: textFits && !!ig.showValue.value,
             showSub: textFits && !!ig.showSub.value,
-            valueColor: vs.color.value.value || null,
-            unitColor: ls.color.value.value || null,
+            // A forced Codex mode owns these two inks: null routes the headline
+            // through headlineInk and the status line through statusInk, both
+            // measured against the Codex surface (contrastInk / mutedInk).
+            valueColor: inkOverride ? null : (vs.color.value.value || null),
+            unitColor: inkOverride ? null : (ls.color.value.value || null),
             valueAlign: String(vs.align.value),
             unitAlign: String(ls.align.value),
             statusInk,
@@ -449,6 +481,7 @@ export class Visual implements IVisual {
             vessel: String(ig.vessel.value?.value || "bolt"),
             showGlyph: !!ig.showGlyph.value,
             morphStyle: style,
+            codex,
         };
         void surf; // theme tokens flow through iconTokens inside the renderers
 
@@ -502,6 +535,7 @@ export class Visual implements IVisual {
     // ─── Lifecycle ─────────────────────────────────────────────
 
     public getFormattingModel(): powerbi.visuals.FormattingModel {
+        this.formattingSettings.codexTheme.reveal();
         return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
     }
 
