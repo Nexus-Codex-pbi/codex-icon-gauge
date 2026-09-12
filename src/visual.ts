@@ -24,7 +24,7 @@ import { Theme, accentToken } from "./shared/bandEngine";
 import { surfaceTokens } from "./shared/designTokens";
 import { makeCornerBrackets, CardSignatureHandle } from "./shared/cardSignature";
 import { applyCardSignature } from "./shared/cardSignatureSettings";
-import { resolveCodexTheme, neonColorFor, ResolvedCodexTheme } from "./shared/codexThemeSettings";
+import { resolveCodexTheme, neonColorFor, ResolvedCodexTheme, flareHexFor } from "./shared/codexThemeSettings";
 import { applyBorder } from "./shared/borderSettings";
 import {
     IconGaugeCtx, bandFor, iconTokens, renderFillVessel, renderIconRow,
@@ -247,6 +247,7 @@ export class Visual implements IVisual {
             });
             applyCardSignature(this.cornerSignature, this.formattingSettings.cardSignature, {
                 autoHex: neonColorFor(accentToken(theme), codex),
+                flareHex: flareHexFor(codex),
                 hcActive: this.isHighContrast,
                 hcColor: this.hcForeground,
                 mirror: true,
