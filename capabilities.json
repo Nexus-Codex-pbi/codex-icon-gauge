@@ -73,6 +73,12 @@
     }
   ],
   "objects": {
+    "licence": {
+      "displayName": "Licence",
+      "properties": {
+        "key": { "displayName": "Suite key", "type": { "text": true } }
+      }
+    },
     "titleSettings": {
       "displayName": "Visual Title",
       "properties": {
